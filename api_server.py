@@ -26,6 +26,8 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -70,7 +72,7 @@ if not API_TOKEN:
 # Job store in memoria
 # ─────────────────────────────────────────────
 jobs: dict[str, dict] = {}
-semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+semaphore: asyncio.Semaphore = None
 
 # ─────────────────────────────────────────────
 # App FastAPI
@@ -95,6 +97,12 @@ Authorization: Bearer <API_TOKEN>
 )
 
 security = HTTPBearer()
+
+
+@app.on_event("startup")
+async def startup_event():
+    global semaphore
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
 
 # ─────────────────────────────────────────────
@@ -165,36 +173,109 @@ class JobStatus(BaseModel):
 # ─────────────────────────────────────────────
 # Utility
 # ─────────────────────────────────────────────
+def load_api_workflow(workflow_path: Path) -> dict:
+    """Carica il workflow e lo converte in formato API se necessario."""
+    with open(workflow_path) as f:
+        wf = json.load(f)
+
+    # Controlla se e' gia' formato API (dizionario piatto con class_type)
+    if isinstance(wf, dict) and wf and all(
+        isinstance(v, dict) and "class_type" in v for v in wf.values()
+    ):
+        return wf
+
+    # E' formato UI — cerca o genera la versione API
+    api_path = workflow_path.with_name(workflow_path.stem + "-API.json")
+    if not api_path.exists():
+        converter = Path(__file__).parent / "convert_workflow.py"
+        if not converter.exists():
+            raise HTTPException(status_code=500, detail="convert_workflow.py non trovato")
+        result = subprocess.run(
+            [sys.executable, str(converter), str(workflow_path), str(api_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0 or not api_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore conversione workflow: {result.stderr[:300]}",
+            )
+
+    with open(api_path) as f:
+        return json.load(f)
+
+
 def patch_workflow(workflow: dict, video_filename: str, target_height: int,
                    interpolate: bool, fps_multiplier: int) -> dict:
+    """
+    Modifica il workflow API in memoria.
+    Cerca i nodi configurabili per titolo (_meta.title) e class_type.
+    """
     import copy
     wf = copy.deepcopy(workflow)
-    for node in wf.get("nodes", []):
-        ntype = node.get("type", "")
-        nid   = node.get("id")
 
-        if ntype == "VHS_LoadVideo":
-            wv = node.get("widgets_values", {})
-            if isinstance(wv, dict):
-                wv["video"] = video_filename
-                node["widgets_values"] = wv
-            elif isinstance(wv, list) and wv:
-                wv[0] = video_filename
+    for node_id, node in wf.items():
+        class_type = node.get("class_type", "")
+        inputs     = node.get("inputs", {})
+        meta       = node.get("_meta", {})
+        title      = meta.get("title", "")
 
-        if ntype == "easy mathFloat" and node.get("title") == "Target Resolution":
-            wv = node.get("widgets_values", [])
-            if isinstance(wv, list) and len(wv) >= 1:
-                wv[0] = float(target_height)
-                node["widgets_values"] = wv
+        # Video di input
+        if class_type == "VHS_LoadVideo":
+            inputs["video"] = video_filename
 
-        if ntype == "easy int" and node.get("title") == "FPS Multiplier":
-            node["widgets_values"] = [fps_multiplier]
+        # Target Resolution
+        if title == "Target Resolution":
+            for key in ("a", "value", "b"):
+                if key in inputs and not isinstance(inputs[key], list):
+                    inputs[key] = float(target_height)
+                    break
 
-        INTERPOLATION_NODE_IDS = {41, 42, 43, 44, 46, 47}
-        if nid in INTERPOLATION_NODE_IDS:
-            node["mode"] = 0 if interpolate else 4
+        # FPS Multiplier
+        if title == "FPS Multiplier":
+            for key in ("value", "a", "b"):
+                if key in inputs and not isinstance(inputs[key], list):
+                    inputs[key] = fps_multiplier
+                    break
+
+        node["inputs"] = inputs
+
+    # Gestione interpolazione
+    interp_ids = {
+        nid for nid, n in wf.items()
+        if n.get("_meta", {}).get("in_interpolation_group")
+    }
+
+    if not interpolate:
+        for nid in interp_ids:
+            wf.pop(nid, None)
+        for node_id, node in wf.items():
+            node["inputs"] = {
+                k: v for k, v in node.get("inputs", {}).items()
+                if not (isinstance(v, list) and len(v) == 2 and str(v[0]) in interp_ids)
+            }
+    else:
+        upscale_combine_ids = {
+            nid for nid, n in wf.items()
+            if n.get("class_type") == "VHS_VideoCombine"
+            and not n.get("_meta", {}).get("in_interpolation_group")
+        }
+        for nid in upscale_combine_ids:
+            wf.pop(nid, None)
+        for node_id, node in wf.items():
+            node["inputs"] = {
+                k: v for k, v in node.get("inputs", {}).items()
+                if not (isinstance(v, list) and len(v) == 2 and str(v[0]) in upscale_combine_ids)
+            }
 
     return wf
+
+
+def strip_meta(workflow: dict) -> dict:
+    """Rimuove _meta prima di inviare a ComfyUI."""
+    return {
+        nid: {k: v for k, v in ndata.items() if k != "_meta"}
+        for nid, ndata in workflow.items()
+    }
 
 
 async def download_video_from_url(url: str, dest_folder: Path, filename: str) -> Path:
@@ -244,7 +325,7 @@ def process_job_sync(job_id: str, workflow: dict, video_filename: str,
 
     try:
         # Invia workflow
-        prompt_id, client_id = queue_prompt_sync(workflow)
+        prompt_id, client_id = queue_prompt_sync(strip_meta(workflow))
         jobs[job_id]["prompt_id"] = prompt_id
 
         # WebSocket listener
@@ -344,7 +425,7 @@ async def run_job(job_id: str, workflow: dict, video_filename: str,
                   output_filename: Optional[str]):
     """Wrapper asincrono che esegue il job in un thread."""
     async with semaphore:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None,
             process_job_sync,
@@ -429,9 +510,8 @@ async def upscale(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Errore download video: {e}")
 
-    # Carica e patcha workflow
-    with open(workflow_path) as f:
-        workflow = json.load(f)
+    # Carica workflow (converte UI→API se necessario)
+    workflow = load_api_workflow(workflow_path)
 
     patched = patch_workflow(
         workflow,

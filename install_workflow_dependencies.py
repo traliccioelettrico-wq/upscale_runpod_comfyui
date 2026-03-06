@@ -226,7 +226,9 @@ def resolve_node_github_url(cnr_id: str, manager_index: dict) -> str | None:
     # 1. Cerca nel manager index
     entry = manager_index.get(cnr_id)
     if entry:
-        return entry.get("reference") or entry.get("install_type")
+        ref = entry.get("reference")
+        if ref and ref.startswith("http"):
+            return ref
 
     # 2. Prova ComfyUI Registry
     try:
