@@ -33,10 +33,23 @@ start_comfyui() {
     log "ComfyUI avviato (PID $!)"
 }
 
+start_api_server() {
+    log "Avvio API server upscaler..."
+    pkill -f "api_server.py" 2>/dev/null || true
+    sleep 1
+    source "$UPSCALER_DIR/venv/bin/activate"
+    cd "$UPSCALER_DIR"
+    nohup python3 api_server.py > /workspace/api_server.log 2>&1 &
+    log "API server avviato (PID $!) su porta 7860"
+    deactivate
+}
+
 # ── Se il setup è già stato fatto, avvia solo ComfyUI ────────
 if [ -f "$SETUP_DONE" ]; then
-    log "Setup già completato — avvio ComfyUI direttamente"
+    log "Setup già completato — avvio ComfyUI e API server direttamente"
     start_comfyui
+    sleep 10
+    start_api_server
     exit 0
 fi
 
@@ -94,5 +107,7 @@ log "========================================"
 # ── 8. Avvia ComfyUI ─────────────────────────────────────────
 deactivate
 start_comfyui
+sleep 10
+start_api_server
 
-log "Pod pronto. ComfyUI disponibile su porta 8188"
+log "Pod pronto. ComfyUI su porta 8188 | API server su porta 7860"
