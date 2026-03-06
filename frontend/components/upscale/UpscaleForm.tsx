@@ -119,7 +119,12 @@ export function UpscaleForm() {
         </CardContent>
       </Card>
 
-      <Button type="submit" disabled={!canSubmit} className="w-full" size="lg">
+      <Button
+        type="submit"
+        disabled={!canSubmit}
+        className="w-full bg-primary hover:bg-primary/90 shadow-[0_2px_12px_oklch(0.64_0.20_292/0.35)] hover:shadow-[0_4px_16px_oklch(0.64_0.20_292/0.45)] transition-shadow"
+        size="lg"
+      >
         {submitting ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Avvio in corso...

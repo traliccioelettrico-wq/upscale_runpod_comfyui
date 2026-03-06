@@ -35,9 +35,12 @@ export default function JobsPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Coda Job</h1>
-        <Button variant="outline" size="sm" onClick={() => mutate()}>
-          <RefreshCw className="w-4 h-4 mr-1" /> Aggiorna
+        <div>
+          <h1 className="text-xl font-semibold">Coda Job</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Tutti i job di upscaling</p>
+        </div>
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => mutate()}>
+          <RefreshCw className="w-3.5 h-3.5" /> Aggiorna
         </Button>
       </div>
 

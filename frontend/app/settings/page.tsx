@@ -59,7 +59,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Impostazioni</h1>
+        <h1 className="text-xl font-semibold">Impostazioni</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Configura la connessione al pod RunPod con l&apos;upscaler.
         </p>
