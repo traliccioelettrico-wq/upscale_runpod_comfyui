@@ -60,6 +60,26 @@ export interface VideoMetadata {
 export type TargetResolution = 720 | 1080 | 1440 | 2160;
 export type FpsMultiplier = 2 | 3 | 4;
 
+// ─── Parametri upscale immagine ──────────────────────────────────────────────
+
+export type ImageTargetResolution = 720 | 1080 | 1440 | 2160 | 4320;
+export type ImageScaleMode = "target" | "native";
+
+export interface ImageUpscaleParams {
+  imageBase64?: string;
+  imageUrl?: string;
+  targetHeight: ImageTargetResolution;
+  scaleMode: ImageScaleMode;
+  outputFilename?: string;
+}
+
+export interface ImageJobStartResult {
+  job_id: string;
+  status: string;
+  message: string;
+  src_dimensions: string;
+}
+
 export interface UpscaleParams {
   videoFilename: string;
   targetHeight: TargetResolution;

@@ -6,7 +6,7 @@ import { useConnection } from "@/lib/connection-store";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/upscale":   "Nuovo Upscale",
+  "/upscale":   "Upscaling",
   "/jobs":      "Coda Job",
   "/settings":  "Impostazioni",
 };

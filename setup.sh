@@ -90,7 +90,7 @@ log "venv creato e attivato"
 # ── 5. Installa dipendenze Python ────────────────────────────
 log "Installo dipendenze Python..."
 pip install --quiet --upgrade pip
-pip install --quiet requests tqdm websocket-client fastapi uvicorn pydantic aiohttp aiofiles
+pip install --quiet requests tqdm websocket-client fastapi uvicorn pydantic aiohttp aiofiles Pillow
 log "Dipendenze Python installate"
 
 # ── 6. Installa custom nodes e modelli ComfyUI ───────────────
