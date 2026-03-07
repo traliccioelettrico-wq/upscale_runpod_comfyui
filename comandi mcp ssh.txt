@@ -1,0 +1,26 @@
+claude mcp list
+```
+
+Dovresti vedere `ssh-mcp` nell'elenco.
+
+### 3. Cosa può fare Claude Code una volta connesso
+
+Con questo MCP Claude Code può:
+
+- **Eseguire comandi** sul pod: `tail -f /workspace/comfyui.log`, `ps aux`, `df -h`
+- **Leggere log** in tempo reale: ComfyUI log, api_server log, setup log
+- **Modificare file** direttamente su `/workspace/upscaler/*.py`
+- **Testare le API** con curl direttamente dal pod (localhost, nessun proxy)
+- **Riavviare servizi**: `pkill -f api_server.py && python3 api_server.py &`
+- **Debug automatico**: legge l'errore → modifica il file → riavvia → rilegge il log
+
+### 4. Prompt tipo da dare a Claude Code per il testing
+
+Una volta configurato, puoi dire a Claude Code:
+```
+Connettiti al pod RunPod via SSH e:
+1. Verifica che ComfyUI sia in esecuzione su porta 8188
+2. Verifica che api_server.py sia in esecuzione su porta 7860
+3. Testa tutti gli endpoint: /health, POST /upscale, GET /status, GET /download
+4. Leggi i log di entrambi i servizi e segnala eventuali errori
+5. Se trovi bug in api_server.py, correggili direttamente e riavvia il server
